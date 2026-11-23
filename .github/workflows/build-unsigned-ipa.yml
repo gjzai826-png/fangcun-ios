@@ -1,0 +1,42 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          XCODE_APP=$(ls -d /Applications/Xcode*.app | sort -V | tail -n 1)
+          echo "Using ${XCODE_APP}"
+          sudo xcode-select -s "${XCODE_APP}/Contents/Developer"
+          xcodebuild -version
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          xcodebuild -project PersonalEstateWorkbench.xcodeproj -scheme PersonalEstateWorkbench -sdk iphoneos -destination 'generic/platform=iOS' -configuration Release CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -derivedDataPath "$GITHUB_WORKSPACE/build" build
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP="$GITHUB_WORKSPACE/build/Build/Products/Release-iphoneos/PersonalEstateWorkbench.app"
+          test -d "$APP"
+          rm -rf Payload PersonalEstateWorkbench-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -r -y PersonalEstateWorkbench-unsigned.ipa Payload
+          rm -rf Payload
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: PersonalEstateWorkbench-unsigned
+          path: PersonalEstateWorkbench-unsigned.ipa
+          if-no-files-found: error
